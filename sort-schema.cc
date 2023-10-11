@@ -15,6 +15,7 @@
 #include <ostream>
 #include <stdexcept>
 #include <string>
+#include <unordered_set>
 #include <vector>
 using namespace std;
 
@@ -28,7 +29,7 @@ string file;
 string text;
 
 void readText() {
-	ifstream is(file, std::ios::in);
+	ifstream is(file, ios::binary);
 	text = {istreambuf_iterator<char>(is), istreambuf_iterator<char>()};
 
 	// make sure input ends with a newline, to simplify parser code
@@ -40,10 +41,19 @@ bool isid(unsigned char c) {
 	return isalnum(c) || c == '_';
 }
 
+[[noreturn]] void err(int i, string msg) {
+	auto s = text.data();
+	int line = 1;
+	for (int j = 0; j < i; ++j)
+		if (s[j] == '\n')
+			++line;
+	throw runtime_error(file + ':' + to_string(line) + ": " + msg);
+}
+
 enum {
 	// SORT
-	t_char,
 	t_comment,
+	t_etc,
 	t_space,
 	t_word,
 };
@@ -56,12 +66,22 @@ struct Tok {
 	}
 };
 
+vector<Tok> toks;
+
 void lex() {
+	toks.clear();
 	auto s = text.data();
 	int i = 0;
 	while (s[i]) {
 		auto j = i;
 		switch (s[i]) {
+		case ' ':
+		case '\n':
+		case '\r':
+		case '\t':
+			++j;
+			toks.emplace_back(t_space, i, j);
+			break;
 		case '0':
 		case '1':
 		case '2':
@@ -129,24 +149,24 @@ void lex() {
 				++j;
 			while (isid(s[j]));
 			toks.emplace_back(t_word, i, j);
-			i = j;
-			continue;
+			break;
 		case '\'':
-			++src;
-			while (*src != '\'') {
-				switch (*src) {
+			++j;
+			while (s[j] != '\'') {
+				switch (s[j]) {
 				case '\\':
-					src += 2;
+					j += 2;
 					continue;
 				case '\n':
-					err("unclosed quote");
+					err(i, "unclosed quote");
 				}
-				++src;
+				++j;
 			}
-			++src;
-			tok.assign(src0, src);
-			return;
+			++j;
+			toks.emplace_back(t_etc, i, j);
+			break;
 		}
+		i = j;
 	}
 }
 
