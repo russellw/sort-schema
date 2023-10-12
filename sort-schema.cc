@@ -50,28 +50,44 @@ bool isid(unsigned char c) {
 	throw runtime_error(file + ':' + to_string(line) + ": " + msg);
 }
 
-enum {
-	// SORT
-	t_comment,
-	t_etc,
-	t_word,
-};
-
 struct Tok {
-	int tag;
-	int i, j;
+	int first, last;
 
-	Tok(int tag, int i, int j): tag(tag), i(i), j(j) {
+	Tok(int first, int last): first(first), last(last) {
+	}
+
+	virtual bool eq(const char*) {
+		return 0;
 	}
 };
 
-vector<Tok> toks;
+struct Comment: Tok {
+	Comment(int first, int last): Tok(first, last) {
+	}
+};
+
+struct Word: Tok {
+	Word(int first, int last): Tok(first, last) {
+	}
+
+	virtual bool eq(const char* t) {
+		auto s = text.data();
+		auto i = first;
+		for (; i < last; ++i)
+			if (tolower((unsigned char)(s[i])) != t[i])
+				return 0;
+		return !t[i];
+	}
+};
+
+vector<Tok*> toks;
 
 void lex() {
 	toks.clear();
 	auto s = text.data();
 	for (int i = 0; s[i];) {
 		auto j = i;
+		Tok* tok;
 		switch (s[i]) {
 		case '-':
 			if (s[1] == '-') {
@@ -82,10 +98,10 @@ void lex() {
 						++t;
 				}
 				j = t - s;
-				toks.emplace_back(t_comment, i, j);
+				tok = new Comment(i, j);
 			} else {
 				++j;
-				toks.emplace_back(t_etc, i, j);
+				tok = new Tok(i, j);
 			}
 			break;
 		case '0':
@@ -154,7 +170,7 @@ void lex() {
 			do
 				++j;
 			while (isid(s[j]));
-			toks.emplace_back(t_word, i, j);
+			tok = new Word(i, j);
 			break;
 		case '\'':
 			++j;
@@ -169,14 +185,16 @@ void lex() {
 				++j;
 			}
 			++j;
-			toks.emplace_back(t_etc, i, j);
+			tok = new Tok(i, j);
 			break;
 		default:
 			++j;
-			toks.emplace_back(t_etc, i, j);
+			tok = new Tok(i, j);
 		}
+		toks.push_back(tok);
 		i = j;
 	}
+	toks.push_back(new Tok(0, 0));
 }
 
 struct Table {
@@ -188,6 +206,8 @@ vector<Table*> tables;
 
 void parse() {
 	for (int i = 0; i < toks.size(); ++i) {
+		if (toks[i]->eq("create") && toks[i + 1]->eq("table")) {
+		}
 	}
 }
 
