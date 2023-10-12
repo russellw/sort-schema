@@ -70,8 +70,7 @@ vector<Tok> toks;
 void lex() {
 	toks.clear();
 	auto s = text.data();
-	int i = 0;
-	while (s[i]) {
+	for (int i = 0; s[i];) {
 		auto j = i;
 		switch (s[i]) {
 		case '-':
@@ -180,6 +179,18 @@ void lex() {
 	}
 }
 
+struct Table {
+	string name;
+	vector<Table*> links;
+};
+
+vector<Table*> tables;
+
+void parse() {
+	for (int i = 0; i < toks.size(); ++i) {
+	}
+}
+
 template <class T> void topologicalSortRecur(const vector<T>& v, vector<T>& o, unordered_set<T>& visited, T a) {
 	if (!visited.insert(a).second)
 		return;
@@ -228,6 +239,7 @@ int main(int argc, char** argv) {
 			file = file0;
 			readText();
 			lex();
+			parse();
 		}
 		return 0;
 	} catch (exception& e) {
