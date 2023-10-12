@@ -54,7 +54,6 @@ enum {
 	// SORT
 	t_comment,
 	t_etc,
-	t_space,
 	t_word,
 };
 
@@ -75,12 +74,20 @@ void lex() {
 	while (s[i]) {
 		auto j = i;
 		switch (s[i]) {
-		case ' ':
-		case '\n':
-		case '\r':
-		case '\t':
-			++j;
-			toks.emplace_back(t_space, i, j);
+		case '-':
+			if (s[1] == '-') {
+				auto t = s + i;
+				while (t[0] == '-' && t[1] == '-') {
+					t = strchr(t, '\n');
+					while (isspace((unsigned char)*t))
+						++t;
+				}
+				j = t - s;
+				toks.emplace_back(t_comment, i, j);
+			} else {
+				++j;
+				toks.emplace_back(t_etc, i, j);
+			}
 			break;
 		case '0':
 		case '1':
@@ -165,6 +172,9 @@ void lex() {
 			++j;
 			toks.emplace_back(t_etc, i, j);
 			break;
+		default:
+			++j;
+			toks.emplace_back(t_etc, i, j);
 		}
 		i = j;
 	}
