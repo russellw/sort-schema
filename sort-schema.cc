@@ -41,19 +41,19 @@ bool isid(unsigned char c) {
 	return isalnum(c) || c == '_';
 }
 
-[[noreturn]] void err(int i, string msg) {
-	auto s = text.data();
+[[noreturn]] void err(const char* t, const char* msg) {
 	int line = 1;
-	for (int j = 0; j < i; ++j)
-		if (s[j] == '\n')
+	for (auto s = text.data(); s != t; ++s)
+		if (*s == '\n')
 			++line;
 	throw runtime_error(file + ':' + to_string(line) + ": " + msg);
 }
 
 struct Tok {
-	int first, last;
+	const char* first;
+	const char* last;
 
-	Tok(int first, int last): first(first), last(last) {
+	Tok(const char* first, const char* last): first(first), last(last) {
 	}
 
 	virtual bool eq(const char*) {
@@ -62,21 +62,19 @@ struct Tok {
 };
 
 struct Comment: Tok {
-	Comment(int first, int last): Tok(first, last) {
+	Comment(const char* first, const char* last): Tok(first, last) {
 	}
 };
 
 struct Word: Tok {
-	Word(int first, int last): Tok(first, last) {
+	Word(const char* first, const char* last): Tok(first, last) {
 	}
 
 	virtual bool eq(const char* t) {
-		auto s = text.data();
-		auto i = first;
-		for (; i < last; ++i)
-			if (tolower((unsigned char)(s[i])) != t[i])
+		for (auto s = first; s != last; ++s)
+			if (tolower((unsigned char)*s) != *t++)
 				return 0;
-		return !t[i];
+		return !*t;
 	}
 };
 
@@ -85,23 +83,21 @@ vector<Tok*> toks;
 void lex() {
 	toks.clear();
 	auto s = text.data();
-	for (int i = 0; s[i];) {
-		auto j = i;
+	while (*s) {
+		auto t = s;
 		Tok* tok;
-		switch (s[i]) {
+		switch (*s) {
 		case '-':
 			if (s[1] == '-') {
-				auto t = s + i;
 				while (t[0] == '-' && t[1] == '-') {
 					t = strchr(t, '\n');
 					while (isspace((unsigned char)*t))
 						++t;
 				}
-				j = t - s;
-				tok = new Comment(i, j);
+				tok = new Comment(s, t);
 			} else {
-				++j;
-				tok = new Tok(i, j);
+				++t;
+				tok = new Tok(s, t);
 			}
 			break;
 		case '0':
@@ -168,33 +164,33 @@ void lex() {
 		case 'y':
 		case 'z':
 			do
-				++j;
-			while (isid(s[j]));
-			tok = new Word(i, j);
+				++t;
+			while (isid(*t));
+			tok = new Word(s, t);
 			break;
 		case '\'':
-			++j;
-			while (s[j] != '\'') {
-				switch (s[j]) {
+			++t;
+			while (*t != '\'') {
+				switch (*t) {
 				case '\\':
-					j += 2;
+					t += 2;
 					continue;
 				case '\n':
-					err(i, "unclosed quote");
+					err(s, "unclosed quote");
 				}
-				++j;
+				++t;
 			}
-			++j;
-			tok = new Tok(i, j);
+			++t;
+			tok = new Tok(s, t);
 			break;
 		default:
-			++j;
-			tok = new Tok(i, j);
+			++t;
+			tok = new Tok(s, t);
 		}
 		toks.push_back(tok);
-		i = j;
+		s = t;
 	}
-	toks.push_back(new Tok(0, 0));
+	toks.push_back(new Tok(s, s));
 }
 
 struct Table {
