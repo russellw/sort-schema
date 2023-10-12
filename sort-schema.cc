@@ -41,7 +41,7 @@ bool isid(unsigned char c) {
 	return isalnum(c) || c == '_';
 }
 
-[[noreturn]] void err(const char* t, const char* msg) {
+[[noreturn]] void err(const char* t, string msg) {
 	int line = 1;
 	for (auto s = text.data(); s != t; ++s)
 		if (*s == '\n')
@@ -59,6 +59,10 @@ struct Tok {
 	virtual bool eq(const char*) {
 		return 0;
 	}
+
+	virtual string word() {
+		err(first, "expected word");
+	}
 };
 
 struct Comment: Tok {
@@ -75,6 +79,10 @@ struct Word: Tok {
 			if (tolower((unsigned char)*s) != *t++)
 				return 0;
 		return !*t;
+	}
+
+	virtual string word() {
+		return string(first, last);
 	}
 };
 
@@ -193,17 +201,41 @@ void lex() {
 	toks.push_back(new Tok(s, s));
 }
 
+void expect(size_t i, char c) {
+	if (toks[i]->first[0] != c)
+		err(toks[i]->first, string("expected '") + c + '\'');
+}
+
 struct Table {
 	string name;
 	vector<Table*> links;
+
+	Table(string name): name(name) {
+	}
 };
 
 vector<Table*> tables;
 
 void parse() {
-	for (int i = 0; i < toks.size(); ++i) {
+	for (size_t i = 0; i != toks.size();) {
 		if (toks[i]->eq("create") && toks[i + 1]->eq("table")) {
+			auto table = new Table(toks[i+2]->word());
+			i += 3;
+			expect(i++, '(');
+			size_t depth = 1;
+			for (auto j = i + 4; depth; ++j)
+				switch (toks[j]->first[0]) {
+				case '(':
+					++depth;
+					break;
+				case ')':
+					--depth;
+					break;
+				}
+				tables.push_back(table);
+				continue;
 		}
+		 ++i;
 	}
 }
 
