@@ -15,6 +15,7 @@
 #include <ostream>
 #include <stdexcept>
 #include <string>
+#include <unordered_map>
 #include <unordered_set>
 #include <utility>
 #include <vector>
@@ -245,11 +246,11 @@ void parse() {
 		if (tok != k_word)
 			err("expected name");
 		auto table = new Table({first, src});
+		lex();
 
 		// if there was a comment block immediately before this table
 		// consider it part of the table text
 		table->first = commentLast == createFirst ? commentFirst : createFirst;
-		lex();
 
 		expect('(');
 		size_t depth = 1;
@@ -280,6 +281,24 @@ void parse() {
 		tables.push_back(table);
 		continue;
 	}
+}
+
+void link() {
+	unordered_map<string, Table*> m;
+	for (auto table: tables) {
+		auto& t = m[table->name];
+		if (t)
+			err(table->first, table->name + ": duplicate name");
+		t = table;
+	}
+
+	for (auto table: tables)
+		for (auto& r: table->refs) {
+			auto t = m[r.second];
+			if (!t)
+				err(r.first, r.second + ": not found");
+			table->links.push_back(t);
+		}
 }
 
 template <class T> void topologicalSortRecur(const vector<T>& v, vector<T>& o, unordered_set<T>& visited, T a) {
@@ -331,6 +350,7 @@ int main(int argc, char** argv) {
 			readText();
 			initLex();
 			parse();
+			link();
 		}
 		return 0;
 	} catch (exception& e) {
