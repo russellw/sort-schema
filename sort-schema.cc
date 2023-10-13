@@ -16,6 +16,7 @@
 #include <stdexcept>
 #include <string>
 #include <unordered_set>
+#include <utility>
 #include <vector>
 using namespace std;
 
@@ -47,11 +48,13 @@ enum {
 	k_word = 0x100,
 };
 
+// SORT
+const char* commentFirst;
+const char* commentLast;
 const char* first;
 const char* src;
 int tok;
-
-const char* comment;
+//
 
 [[noreturn]] void err(string msg) {
 	size_t line = 1;
@@ -59,6 +62,11 @@ const char* comment;
 		if (*s == '\n')
 			++line;
 	throw runtime_error(file + ':' + to_string(line) + ": " + msg);
+}
+
+[[noreturn]] void err(const char* s, string msg) {
+	src = s;
+	err(msg);
 }
 
 void lex() {
@@ -74,13 +82,17 @@ void lex() {
 			continue;
 		case '-': {
 			auto s = src;
+			commentFirst = s;
 			if (s[1] == '-') {
+				// we need to do more than just skip over comments
+				// but also track the full extent of each comment block
 				do {
 					s = strchr(s, '\n');
 					do
 						++s;
 					while (isspace((unsigned char)*s));
 				} while (s[0] == '-' && s[1] == '-');
+				commentLast = s;
 				src = s;
 				continue;
 			}
@@ -171,6 +183,8 @@ void lex() {
 }
 
 void initLex() {
+	commentFirst = 0;
+	commentLast = 0;
 	src = text.data();
 	lex();
 }
@@ -186,7 +200,7 @@ bool eat(const char* t) {
 	if (tok != k_word)
 		return 0;
 	auto n = strlen(t);
-	if (size_t(src - first) != n)
+	if (src - first != n)
 		return 0;
 	if (_memicmp(first, t, n))
 		return 0;
@@ -200,7 +214,10 @@ void expect(char k) {
 }
 
 struct Table {
+	const char* first;
+	const char* last;
 	string name;
+	vector<pair<const char*, string>> refs;
 	vector<Table*> links;
 
 	Table(string name): name(name) {
@@ -211,17 +228,32 @@ vector<Table*> tables;
 
 void parse() {
 	while (tok) {
+		// record any comment block before CREATE
+		// because, though unlikely, it is possible there could be another one between words
+		auto commentFirst = ::commentFirst;
+		auto commentLast = ::commentLast;
+
+		// and the location of the CREATE keyword
+		auto createFirst = ::first;
+
+		// if there is one
 		if (!(eat("create") && eat("table"))) {
 			lex();
 			continue;
 		}
+
 		if (tok != k_word)
 			err("expected name");
 		auto table = new Table({first, src});
+
+		// if there was a comment block immediately before this table
+		// consider it part of the table text
+		table->first = commentLast == createFirst ? commentFirst : createFirst;
 		lex();
+
 		expect('(');
 		size_t depth = 1;
-		while (depth)
+		while (depth) {
 			switch (tok) {
 			case '(':
 				++depth;
@@ -229,7 +261,22 @@ void parse() {
 			case ')':
 				--depth;
 				break;
+			case 0:
+				src = createFirst;
+				err("unclosed CREATE TABLE");
+			case k_word:
+				if (eat("references")) {
+					if (tok != k_word)
+						err("expected name");
+					table->refs.push_back(make_pair(first, string(first, src)));
+				}
+				break;
 			}
+			lex();
+		}
+		table->last = src;
+		expect(';');
+
 		tables.push_back(table);
 		continue;
 	}
