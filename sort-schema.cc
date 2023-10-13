@@ -268,7 +268,7 @@ void parse() {
 				if (eat("references")) {
 					if (tok != k_word)
 						err("expected name");
-					table->refs.push_back(make_pair(first, string(first, src)));
+					table->refs.emplace_back(first, string(first, src));
 				}
 				break;
 			}
