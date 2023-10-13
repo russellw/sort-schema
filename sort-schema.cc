@@ -190,6 +190,7 @@ void initLex() {
 	lex();
 }
 
+// parser
 bool eat(int k) {
 	if (tok != k)
 		return 0;
@@ -283,6 +284,7 @@ void parse() {
 	}
 }
 
+// resolve names to pointers to tables
 void link() {
 	unordered_map<string, Table*> m;
 	for (auto table: tables) {
@@ -351,6 +353,7 @@ int main(int argc, char** argv) {
 			initLex();
 			parse();
 			link();
+			topologicalSort(tables);
 		}
 		return 0;
 	} catch (exception& e) {
