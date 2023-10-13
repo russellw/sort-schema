@@ -28,6 +28,11 @@ using namespace std;
 string file;
 string text;
 
+// SORT
+bool isid(unsigned char c) {
+	return isalnum(c) || c == '_';
+}
+
 void readText() {
 	ifstream is(file, ios::binary);
 	text = {istreambuf_iterator<char>(is), istreambuf_iterator<char>()};
@@ -37,87 +42,50 @@ void readText() {
 		text += '\n';
 }
 
-bool isid(unsigned char c) {
-	return isalnum(c) || c == '_';
-}
+// tokenizer
+enum {
+	k_word = 0x100,
+};
 
-[[noreturn]] void err(const char* t, string msg) {
-	int line = 1;
-	for (auto s = text.data(); s != t; ++s)
+const char* first;
+const char* src;
+int tok;
+
+const char* comment;
+
+[[noreturn]] void err(string msg) {
+	size_t line = 1;
+	for (auto s = text.data(); s != src; ++s)
 		if (*s == '\n')
 			++line;
 	throw runtime_error(file + ':' + to_string(line) + ": " + msg);
 }
 
-struct Tok {
-	const char* first;
-	const char* last;
-
-	Tok(const char* first, const char* last): first(first), last(last) {
-	}
-
-	virtual bool eq(const char*) {
-		return 0;
-	}
-
-	virtual string word() {
-		err(first, "expected word");
-	}
-};
-
-struct Comment: Tok {
-	Comment(const char* first, const char* last): Tok(first, last) {
-	}
-};
-
-struct Word: Tok {
-	Word(const char* first, const char* last): Tok(first, last) {
-	}
-
-	virtual bool eq(const char* t) {
-		for (auto s = first; s != last; ++s)
-			if (tolower((unsigned char)*s) != *t++)
-				return 0;
-		return !*t;
-	}
-
-	virtual string word() {
-		return string(first, last);
-	}
-};
-
-vector<Tok*> toks;
-
 void lex() {
-	toks.clear();
-	auto s = text.data();
-	while (*s) {
-		auto t = s;
-		Tok* tok;
-		switch (*s) {
-		case '-':
+	for (;;) {
+		first = src;
+		switch (*src) {
+		case ' ':
+		case '\f':
+		case '\n':
+		case '\r':
+		case '\t':
+			++src;
+			continue;
+		case '-': {
+			auto s = src;
 			if (s[1] == '-') {
-				while (t[0] == '-' && t[1] == '-') {
-					t = strchr(t, '\n');
-					while (isspace((unsigned char)*t))
-						++t;
-				}
-				tok = new Comment(s, t);
-			} else {
-				++t;
-				tok = new Tok(s, t);
+				do {
+					s = strchr(s, '\n');
+					do
+						++s;
+					while (isspace((unsigned char)*s));
+				} while (s[0] == '-' && s[1] == '-');
+				src = s;
+				continue;
 			}
 			break;
-		case '0':
-		case '1':
-		case '2':
-		case '3':
-		case '4':
-		case '5':
-		case '6':
-		case '7':
-		case '8':
-		case '9':
+		}
 		case 'A':
 		case 'B':
 		case 'C':
@@ -170,40 +138,65 @@ void lex() {
 		case 'w':
 		case 'x':
 		case 'y':
-		case 'z':
+		case 'z': {
+			auto s = src;
 			do
-				++t;
-			while (isid(*t));
-			tok = new Word(s, t);
-			break;
-		case '\'':
-			++t;
-			while (*t != '\'') {
-				switch (*t) {
+				++s;
+			while (isid(*s));
+			src = s;
+			return;
+		}
+		case '\'': {
+			auto s = src + 1;
+			while (*s != '\'') {
+				switch (*s) {
 				case '\\':
-					t += 2;
+					s += 2;
 					continue;
 				case '\n':
-					err(s, "unclosed quote");
+					err("unclosed quote");
 				}
-				++t;
+				++s;
 			}
-			++t;
-			tok = new Tok(s, t);
-			break;
-		default:
-			++t;
-			tok = new Tok(s, t);
+			src = s + 1;
+			return;
 		}
-		toks.push_back(tok);
-		s = t;
+		case 0:
+			tok = 0;
+			return;
+		}
+		tok = *src++;
+		return;
 	}
-	toks.push_back(new Tok(s, s));
 }
 
-void expect(size_t i, char c) {
-	if (toks[i]->first[0] != c)
-		err(toks[i]->first, string("expected '") + c + '\'');
+void initLex() {
+	src = text.data();
+	lex();
+}
+
+bool eat(int k) {
+	if (tok != k)
+		return 0;
+	lex();
+	return 1;
+}
+
+bool eat(const char* t) {
+	if (tok != k_word)
+		return 0;
+	auto n = strlen(t);
+	if (size_t(src - first) != n)
+		return 0;
+	if (_memicmp(first, t, n))
+		return 0;
+	lex();
+	return 1;
+}
+
+void expect(char k) {
+	if (!eat(k))
+		err(string("expected '") + k + '\'');
 }
 
 struct Table {
@@ -217,25 +210,28 @@ struct Table {
 vector<Table*> tables;
 
 void parse() {
-	for (size_t i = 0; i != toks.size();) {
-		if (toks[i]->eq("create") && toks[i + 1]->eq("table")) {
-			auto table = new Table(toks[i+2]->word());
-			i += 3;
-			expect(i++, '(');
-			size_t depth = 1;
-			for (auto j = i + 4; depth; ++j)
-				switch (toks[j]->first[0]) {
-				case '(':
-					++depth;
-					break;
-				case ')':
-					--depth;
-					break;
-				}
-				tables.push_back(table);
-				continue;
+	while (tok) {
+		if (!(eat("create") && eat("table"))) {
+			lex();
+			continue;
 		}
-		 ++i;
+		if (tok != k_word)
+			err("expected name");
+		auto table = new Table({first, src});
+		lex();
+		expect('(');
+		size_t depth = 1;
+		while (depth)
+			switch (tok) {
+			case '(':
+				++depth;
+				break;
+			case ')':
+				--depth;
+				break;
+			}
+		tables.push_back(table);
+		continue;
 	}
 }
 
@@ -286,7 +282,7 @@ int main(int argc, char** argv) {
 		for (auto& file0: files) {
 			file = file0;
 			readText();
-			lex();
+			initLex();
 			parse();
 		}
 		return 0;
