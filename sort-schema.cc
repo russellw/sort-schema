@@ -356,6 +356,8 @@ int main(int argc, char** argv) {
 			readText();
 			initLex();
 			parse();
+			if (tables.empty())
+				throw runtime_error(file + ": no tables found");
 			link();
 
 			auto sorted = tables;
