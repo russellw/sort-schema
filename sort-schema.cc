@@ -364,9 +364,22 @@ int main(int argc, char** argv) {
 			sort(sorted.begin(), sorted.end(), [](const Table* a, const Table* b) { return a->name < b->name; });
 			topologicalSort(sorted);
 
-			string o;
-			for (size_t i = 0; i != tables.size(); ++i) {
-				o.append(text, sorted[i]->first - text.data(), sorted[i]->last - sorted[i]->first);
+			auto stop = new Table("");
+			stop->first = stop->last = text.data() + text.size();
+			tables.push_back(stop);
+
+			string o((const char*)text.data(), tables[0]->first);
+			for (size_t i = 0; i != sorted.size(); ++i) {
+				o.append(sorted[i]->first, sorted[i]->last);
+				o.append(tables[i]->last, tables[i + 1]->first);
+			}
+
+			if (inplace) {
+				if (o == text)
+					continue;
+				ofstream os(file, std::ios::binary);
+				os << o;
+				continue;
 			}
 			cout << o;
 		}
