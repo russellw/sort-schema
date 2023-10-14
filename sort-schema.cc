@@ -8,6 +8,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <algorithm>
 #include <exception>
 #include <fstream>
 #include <iostream>
@@ -353,7 +354,9 @@ int main(int argc, char** argv) {
 			initLex();
 			parse();
 			link();
-			topologicalSort(tables);
+			auto sorted = tables;
+			sort(sorted.begin(), sorted.end(), [](const Table* a, const Table* b) { return a->name < b->name; });
+			topologicalSort(sorted);
 		}
 		return 0;
 	} catch (exception& e) {
