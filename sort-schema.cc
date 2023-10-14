@@ -47,7 +47,8 @@ void readText() {
 
 // tokenizer
 enum {
-	k_word = 0x100,
+	k_quote = 0x100,
+	k_word,
 };
 
 // SORT
@@ -158,6 +159,7 @@ void lex() {
 				++s;
 			while (isid(*s));
 			src = s;
+			tok = k_word;
 			return;
 		}
 		case '\'': {
@@ -173,6 +175,7 @@ void lex() {
 				++s;
 			}
 			src = s + 1;
+			tok = k_quote;
 			return;
 		}
 		case 0:
