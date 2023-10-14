@@ -354,9 +354,16 @@ int main(int argc, char** argv) {
 			initLex();
 			parse();
 			link();
+
 			auto sorted = tables;
 			sort(sorted.begin(), sorted.end(), [](const Table* a, const Table* b) { return a->name < b->name; });
 			topologicalSort(sorted);
+
+			string o;
+			for (size_t i = 0; i != tables.size(); ++i) {
+				o.append(text, sorted[i]->first - text.data(), sorted[i]->last - sorted[i]->first);
+			}
+			cout << o;
 		}
 		return 0;
 	} catch (exception& e) {
