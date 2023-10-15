@@ -377,7 +377,7 @@ int main(int argc, char** argv) {
 			if (inplace) {
 				if (o == text)
 					continue;
-				ofstream os(file, std::ios::binary);
+				ofstream os(file, ios::binary);
 				os << o;
 				continue;
 			}
