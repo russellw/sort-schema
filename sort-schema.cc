@@ -268,8 +268,7 @@ void parse() {
 				--depth;
 				break;
 			case 0:
-				src = createFirst;
-				err("unclosed CREATE TABLE");
+				err(createFirst, "unclosed CREATE TABLE");
 			case k_word:
 				if (eat("references")) {
 					if (tok != k_word)
