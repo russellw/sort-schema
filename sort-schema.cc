@@ -180,6 +180,17 @@ void lex() {
 			tok = k_word;
 			return;
 		}
+		case '[': {
+			auto s = src + 1;
+			while (*s != ']') {
+				if (*s == '\n')
+					err("unclosed '['");
+				++s;
+			}
+			src = s + 1;
+			tok = k_quote;
+			return;
+		}
 		case 0:
 			tok = 0;
 			return;
