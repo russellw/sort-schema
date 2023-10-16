@@ -83,6 +83,24 @@ void lex() {
 		case '\t':
 			++src;
 			continue;
+		case '"':
+		case '\'': {
+			auto q = *src;
+			auto s = src + 1;
+			while (*s != q) {
+				switch (*s) {
+				case '\\':
+					s += 2;
+					continue;
+				case '\n':
+					err("unclosed quote");
+				}
+				++s;
+			}
+			src = s + 1;
+			tok = k_quote;
+			return;
+		}
 		case '-': {
 			auto s = src;
 			commentFirst = s;
@@ -162,22 +180,6 @@ void lex() {
 			tok = k_word;
 			return;
 		}
-		case '\'': {
-			auto s = src + 1;
-			while (*s != '\'') {
-				switch (*s) {
-				case '\\':
-					s += 2;
-					continue;
-				case '\n':
-					err("unclosed quote");
-				}
-				++s;
-			}
-			src = s + 1;
-			tok = k_quote;
-			return;
-		}
 		case 0:
 			tok = 0;
 			return;
@@ -219,6 +221,22 @@ void expect(char k) {
 		err(string("expected '") + k + '\'');
 }
 
+string name() {
+	string s;
+	switch (tok) {
+	case k_quote:
+		s.assign(first + 1, src - 1);
+		break;
+	case k_word:
+		s.assign(first, src);
+		break;
+	default:
+		err("expected name");
+	}
+	lex();
+	return s;
+}
+
 struct Table {
 	const char* first;
 	const char* last;
@@ -226,7 +244,7 @@ struct Table {
 	vector<pair<const char*, string>> refs;
 	vector<Table*> links;
 
-	Table(string name): name(name) {
+	Table(const char* first, string name): first(first), name(name) {
 	}
 };
 
@@ -248,14 +266,9 @@ void parse() {
 			continue;
 		}
 
-		if (tok != k_word)
-			err("expected name");
-		auto table = new Table({first, src});
-		lex();
-
 		// if there was a comment block immediately before this table
 		// consider it part of the table text
-		table->first = commentLast == createFirst ? commentFirst : createFirst;
+		auto table = new Table(commentLast == createFirst ? commentFirst : createFirst, name());
 
 		expect('(');
 		size_t depth = 1;
@@ -271,9 +284,9 @@ void parse() {
 				err(createFirst, "unclosed CREATE TABLE");
 			case k_word:
 				if (eat("references")) {
-					if (tok != k_word)
-						err("expected name");
-					table->refs.emplace_back(first, string(first, src));
+					auto s = first;
+					table->refs.emplace_back(s, name());
+					continue;
 				}
 				break;
 			}
@@ -363,10 +376,7 @@ int main(int argc, char** argv) {
 			sort(sorted.begin(), sorted.end(), [](const Table* a, const Table* b) { return a->name < b->name; });
 			topologicalSort(sorted);
 
-			auto stop = new Table("");
-			stop->first = stop->last = text.data() + text.size();
-			tables.push_back(stop);
-
+			tables.push_back(new Table(text.data() + text.size(), ""));
 			string o((const char*)text.data(), tables[0]->first);
 			for (size_t i = 0; i != sorted.size(); ++i) {
 				o.append(sorted[i]->first, sorted[i]->last);
