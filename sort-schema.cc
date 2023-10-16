@@ -218,11 +218,13 @@ bool eat(int k) {
 bool eat(const char* t) {
 	if (tok != k_word)
 		return 0;
+	auto s = first;
 	auto n = strlen(t);
-	if (src - first != n)
+	if (src - s != n)
 		return 0;
-	if (_memicmp(first, t, n))
-		return 0;
+	for (size_t i = 0; i != n; ++i)
+		if (tolower((unsigned char)s[i]) != t[i])
+			return 0;
 	lex();
 	return 1;
 }
